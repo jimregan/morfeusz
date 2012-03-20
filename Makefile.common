@@ -1,0 +1,88 @@
+# -*- makefile -*- 
+
+FLAVOUR =SGJP
+MAJOR=0
+MINOR=7
+
+SRCDIR=..
+BUILDERDIR = $(SRCDIR)/dfabuilder
+DFABUILD = $(BUILDERDIR)/dfabuild
+DFADUMP = $(BUILDERDIR)/dfadump
+
+SOURCES := $(addprefix $(SRCDIR)/, encoded.cc api.cc dfabuilder/fsa.cc \
+	formy$(FLAVOUR).cc segmenty$(FLAVOUR).cc \
+	$(addprefix encodings/, tab-unicode.cc tab-latin2.cc tab-cp1250.cc tab-cp852.cc))
+HEADERS := $(addprefix $(SRCDIR)/, formy_opis.hh segmenty_opis.hh dfabuilder/fsa.hh \
+	encoded.hh result.hh encodings/char-ranges.hh)
+OBJECTS := $(notdir $(SOURCES:.cc=.o))
+
+ARCHIVE = morfeusz-$(FLAVOUR)-$(arch)-$(shell date +%Y%m%d)
+
+all: lib $(PROG)
+
+lib: $(LIBMORFVERSIONED)
+
+$(SRCDIR)/version.h: $(SOURCES) $(HEADERS) $(SRCDIR)/encodings/morfeusz_encoding.txt 
+	$(SRCDIR)/getversions $^ >$@
+
+$(SRCDIR)/segmenty$(FLAVOUR).cc: $(SRCDIR)/segmenty$(FLAVOUR).dfa $(DFADUMP)
+	$(DFADUMP) segmenty$(FLAVOUR) $(SRCDIR)/segmenty$(FLAVOUR) $<
+ifneq ($(FLAVOUR),)
+	perl -pi -e 's/dfa segmenty[^ ]+ =/dfa segmenty =/' $(SRCDIR)/segmenty$(FLAVOUR).cc
+endif
+
+$(SRCDIR)/segmenty$(FLAVOUR).dfa: $(SRCDIR)/segmenty$(FLAVOUR).dict $(DFABUILD)
+	$(DFABUILD) $< >$@
+
+$(SRCDIR)/segmenty$(FLAVOUR).dict: $(SRCDIR)/r_segmenty.dat $(SRCDIR)/robsegmenty $(SRCDIR)/typy_zbiorcze$(FLAVOUR).tab
+	$(SRCDIR)/robsegmenty $(SRCDIR)/typy_zbiorcze$(FLAVOUR).tab $< >$@
+
+
+$(SRCDIR)/formy$(FLAVOUR).cc: $(SRCDIR)/formy$(FLAVOUR).dfa $(DFADUMP) $(SRCDIR)/encode-transitions
+	$(DFADUMP) formy$(FLAVOUR) $(SRCDIR)/formy$(FLAVOUR) $<
+	$(SRCDIR)/encode-transitions $(SRCDIR)/formy$(FLAVOUR)_transitions.cc
+ifneq ($(FLAVOUR),)
+	perl -pi -e 's/dfa formy[^ ]+ =/dfa formy =/' $(SRCDIR)/formy$(FLAVOUR).cc
+endif
+
+$(SRCDIR)/formy$(FLAVOUR).dfa: $(SRCDIR)/formy$(FLAVOUR).encoded $(DFABUILD)
+	$(DFABUILD) $< >$@
+
+$(SRCDIR)/formy$(FLAVOUR).encoded \
+$(SRCDIR)/typy_zbiorcze$(FLAVOUR).tab: $(SRCDIR)/formy$(FLAVOUR).tab \
+$(SRCDIR)/r_typy-tagow.dat $(SRCDIR)/r_typy-leksemow.dat $(SRCDIR)/masujslownik \
+$(SRCDIR)/Tagmanip.pm $(SRCDIR)/encodings/latin2-tab.pl
+	$(SRCDIR)/masujslownik $<  >$@
+	mv typy_zbiorcze.tmp $(SRCDIR)/typy_zbiorcze$(FLAVOUR).tab
+
+%.o: $(SRCDIR)/%.cc
+	$(CXX) -c $(CXXFLAGS) $<
+
+tab-%.o: $(SRCDIR)/encodings/tab-%.cc
+	$(CXX) -c $(CXXFLAGS) $<
+
+fsa.o: $(SRCDIR)/dfabuilder/fsa.cc
+	$(CXX) -c $(CXXFLAGS) $<
+
+encoded.o: $(addprefix $(SRCDIR)/, morfeusz.h encoded.hh encodings/char-ranges.hh encoded.cc)
+api.o: $(addprefix $(SRCDIR)/, dfabuilder/fsa.hh encoded.hh api.cc encodings/char-ranges.hh morfeusz.h formy_opis.hh segmenty_opis.hh result.hh version.h)
+fsa.o: $(addprefix $(SRCDIR)/, dfabuilder/fsa.hh encoded.hh encodings/char-ranges.hh)
+formy$(FLAVOUR).o: $(addprefix $(SRCDIR)/, dfabuilder/fsa.hh encoded.hh encodings/char-ranges.hh formy$(FLAVOUR)_states.cc formy$(FLAVOUR)_transitions.cc)
+segmenty$(FLAVOUR).o: $(addprefix $(SRCDIR)/, dfabuilder/fsa.hh encoded.hh  segmenty$(FLAVOUR)_states.cc segmenty$(FLAVOUR)_transitions.cc encodings/char-ranges.hh)
+
+dist: $(SRCDIR)/$(ARCHIVE).tar.bz2
+
+$(SRCDIR)/$(ARCHIVE).tar.bz2: $(LIBMORFVERSIONED) $(PROG)
+	tar cvf $(SRCDIR)/$(ARCHIVE).tar $(LIBFILES) $(PROG) 
+	bash -c "cd ..; tar rvf $(ARCHIVE).tar morfeusz.h README CZYTAJTO"
+	bzip2 -f $(SRCDIR)/$(ARCHIVE).tar
+
+
+clean:
+	-rm $(OBJECTS) $(LIBFILES) $(PROG)
+
+deepclean: clean
+	-rm $(SRCDIR)/formy$(FLAVOUR).encoded $(SRCDIR)/formy$(FLAVOUR).dfa \
+	$(SRCDIR)/formy$(FLAVOUR)*.cc $(SRCDIR)/typy_zbiorcze$(FLAVOUR).tab \
+	$(SRCDIR)/version.h $(SRCDIR)/segmenty$(FLAVOUR)*.cc \
+	$(SRCDIR)/segmenty$(FLAVOUR).dfa $(SRCDIR)/segmenty$(FLAVOUR).dict

@@ -1,0 +1,39 @@
+#! /bin/bash
+
+
+for arch in linux32 linux64 win32 darwin32
+do
+    builddir=build-$arch
+    if [ -d $builddir ]; then 
+	echo Katalog $builddir już istnieje.
+	else
+	mkdir $builddir
+    fi
+    if [ -L $builddir/Makefile ]; then 
+	echo Katalog $builddir zawiera już Makefile.
+	else
+	ln -s ../Makefile.$arch $builddir/Makefile
+    fi
+    make -C $builddir dist
+    make -C $builddir clean
+done
+
+make -C build-linux32 deepclean
+
+tar cjv --dereference -f morfeusz-SGJP-src-`date +%Y%m%d`.tar.bz2 \
+formySGJP.tab morfeusz.h README CZYTAJTO buildall Makefile.common \
+Makefile.darwin32 Makefile.linux32 Makefile.linux64 Makefile.win32 \
+Tagmanip.pm api.cc client-noreadline.cc client.cc dfabuilder/dfabuild \
+dfabuilder/dfadump dfabuilder/fsa.cc dfabuilder/fsa.hh \
+encode-transitions encoded.cc encoded.hh encodings/8859-2.txt \
+encodings/Makefile encodings/MorfEnc.pm encodings/char-ranges.hh \
+encodings/cp1250.txt encodings/cp852.txt encodings/dump-ranges \
+encodings/gentable-8bit encodings/gentable-perl \
+encodings/gentable-unicode encodings/gentable-unicode-perl \
+encodings/getnames.pl encodings/latin2-tab.pl \
+encodings/morfeusz_encoding.txt encodings/tab-cp1250.cc \
+encodings/tab-cp852.cc encodings/tab-latin2.cc \
+encodings/tab-unicode.cc encodings/unicode-tab.pl formy_opis.hh \
+getversions masujslownik r_segmenty.dat r_typy-leksemow.dat \
+r_typy-tagow.dat result.hh robsegmenty segmenty_opis.hh
+

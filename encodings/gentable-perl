@@ -1,0 +1,30 @@
+#! /usr/bin/perl
+use strict;
+use warnings;
+use MorfEnc;
+
+my (@cp2morf);
+
+
+while (<>) {
+    
+    next if /^\#/;
+    next if /^0x[0-9A-F]{2}\s+\#\s*UNDEFINED$/;
+
+    die unless
+	/^0x([0-9a-fA-F]{2})\t0x([0-9a-fA-F]{4})\s+\#\s*(.+)$/;
+
+    my ($code,$name) = (hex($1),"0x\U$2\E\t$3");
+    my $mcode = $morfenc{$name};
+    if (!defined($mcode)) {
+#    print STDERR "UNK: $name\n";
+	next;
+    }
+    $cp2morf[$code]=$mcode;
+}
+
+print "\$CASEABLE = $morfenc{'CASEABLE'};\n\n";
+print "\@latin2_morf = (\n";
+print join ', ', map {defined($_)?$_:'undef'} @cp2morf;
+print ");\n";
+

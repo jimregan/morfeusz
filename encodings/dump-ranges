@@ -1,0 +1,25 @@
+#! /usr/bin/perl
+
+use MorfEnc;
+
+print "#define MORFENC_WHITE $morfenc{'WHITE'}\n";
+print "#define MORFENC_INTERP $morfenc{'INTERP'}\n";
+print "#define MORFENC_DIGITS $morfenc{'DIGITS'}\n";
+print "#define MORFENC_PSEUDOLETTERS $morfenc{'PSEUDOLETTERS'}\n";
+print "#define MORFENC_LETTERS $morfenc{'LETTERS'}\n";
+print "#define MORFENC_CASEABLE $morfenc{'CASEABLE'}\n";
+print "#define MORFENC_NOTACHARCTER $morfenc{'NOTACHARACTER'}\n";
+
+
+# znajdujemy najwiêkszy numer znaku unicodowego w kodowaniu Morfeusza:
+my $maxunival=0;
+for my $name (keys %morfenc) {
+    next
+	unless $name =~ /^0x([0-9a-fA-F]{4})\t(.+)$/;
+    my $code = hex($1);
+    $maxunival = $code if $code > $maxunival;
+}
+$maxunival++;
+
+print "\n#define MORFENC_MAXUNIVAL $maxunival\n";
+

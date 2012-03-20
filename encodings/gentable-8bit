@@ -1,0 +1,46 @@
+#! /usr/bin/perl
+use strict;
+use warnings;
+use MorfEnc;
+
+my $tablename = shift;
+my (@cp2morf, @morf2cp);
+
+for (my $i=0; $i<256; $i++) {
+    $cp2morf[$i]=$morfenc{'NOTACHARACTER'};
+#    $morf2cp[$i]=256;
+}
+
+while (<>) {
+
+next if /^\#/;
+next if /^0x[0-9A-F]{2}\s+\#\s*UNDEFINED$/;
+
+die unless
+    /^0x([0-9a-fA-F]{2})\t0x([0-9a-fA-F]{4})\s+\#\s*(.+)$/;
+
+my ($code,$name) = (hex($1),"0x\U$2\E\t$3");
+my $mcode = $morfenc{$name};
+if (!defined($mcode)) {
+#    print STDERR "UNK: $name\n";
+    next;
+}
+$cp2morf[$code]=$mcode;
+$morf2cp[$mcode]=$code unless defined($morf2cp[$mcode]);
+
+}
+
+print "unsigned char ${tablename}_morf[256] = {\n";
+print join ', ', @cp2morf;
+print "};\n\n";
+
+my $substitute=$morf2cp[$morfenc{"0x001A	SUBSTITUTE"}];
+die "Substitute character missing from the input encoding"
+    unless defined($substitute);
+for (my $i=0; $i<256; $i++) {
+    $morf2cp[$i]=$substitute unless defined($morf2cp[$i]);
+}
+print "unsigned char morf_$tablename\[256] = {\n";
+print join ', ', @morf2cp;
+print "};\n";
+

@@ -1,0 +1,16 @@
+#! /usr/bin/perl -pi
+use strict;
+use vars qw(@latin2_morf);
+BEGIN {
+push @INC, "../", "../encodings/";
+do "latin2-tab.pl";
+}
+
+s/'(.)'/encode($1)/eg;
+
+sub encode {
+    my $zn = shift;
+    die "Nieznany znak '$zn'" unless defined($latin2_morf[ord($zn)]);
+#    print STDERR "Nieznany znak '$zn' on line $.\n" unless defined($latin2_morf[ord($zn)]);
+    return sprintf("'\\%03o'", $latin2_morf[ord($zn)]);
+}

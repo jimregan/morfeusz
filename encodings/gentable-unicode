@@ -1,0 +1,54 @@
+#! /usr/bin/perl
+use strict;
+use warnings;
+use MorfEnc;
+
+my $maxunival = 0;
+
+my (@cp2morf, @morf2cp);
+
+
+for my $name (sort keys %morfenc) {
+
+(print STDERR "? $name \n"), next
+    unless $name =~ /^0x([0-9a-fA-F]{4})\t(.+)$/;
+
+my $code = hex($1);
+my $mcode = $morfenc{$name};
+if (!defined($mcode)) {
+    print STDERR "UNK: $name\n";
+    next;
+}
+
+$maxunival = $code if $code > $maxunival;
+
+$cp2morf[$code]=$mcode;
+$morf2cp[$mcode]=$code unless defined($morf2cp[$mcode]);
+
+}
+
+# for (my $i=0; $i<$maxunival; $i++) {
+#     $cp2morf[$i]=$morfenc{'NOTACHARACTER'};
+# #    $morf2cp[$i]=256;
+# }
+
+print STDERR "MAXUNIVAL: $maxunival\n";
+
+
+print "#include \"encoded.hh\"\n\n";
+
+print "unsigned char EncodedPtr::unicode_morf[MORFENC_MAXUNIVAL] = {\n";
+print join ', ', map {defined($_)?$_:$morfenc{'NOTACHARACTER'}} @cp2morf;
+print "};\n\n";
+
+my $substitute=$morf2cp[$morfenc{"0x001A	SUBSTITUTE"}];
+die "Substitute character missing from the input encoding"
+    unless defined($substitute);
+# for (my $i=0; $i<256; $i++) {
+#     $morf2cp[$i]=$substitute unless defined($morf2cp[$i]);
+# }
+
+print "unsigned int EncodedPtr::morf_unicode[256] = {\n";
+print join ', ', map {defined($_)?$_:$substitute} @morf2cp;
+print "};\n";
+

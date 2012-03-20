@@ -1,0 +1,253 @@
+#! /usr/bin/perl
+
+use strict;
+
+BEGIN { push @INC, "../", "../encodings"; }
+
+use Tagmanip qw(sortuniq norm_tags);
+use vars qw($inputpattern
+	    $pforma $phaslo $pflex @ptagi @popis
+	    %typy %typyleks $typdomyslny @latin2_morf $CASEABLE);
+
+
+
+################### POMOCNICZE  ##########################
+
+sub dajflex {
+    my @znaczki = @_;
+    $znaczki[0] =~ m/^([^:]+)(:|$)/;
+    my $zn = $1;
+    die "Dziwny tag '$znaczki[0]'" unless $zn;
+    for my $znn (@znaczki) {
+	die "Różne fleksemy w jednym opisie: $zn i $znn"
+	    unless $znn =~ /^$zn(:|$)/;
+    }
+    return $zn;
+}
+
+sub przetw_fleksem {
+    my $khaslo = skroc_haslo($pforma,$phaslo);
+#	my $ptagi = join('|', @ptagi);
+    my %typy;
+    for my $tag (@ptagi) {
+	my $typ = dajtyp($tag, $phaslo);
+	push @{$typy{$typ}}, $tag;	    
+    }
+    for my $typ (keys %typy) {
+	my $tagi = join('|', norm_tags(@{$typy{$typ}}));
+	push @popis, "$typ$khaslo\\000$tagi";
+    }
+}
+
+
+sub przetw_slowo {
+    my $typzbiorczy = znajdz_zbiorczy();
+    printf "$pforma \\%03o$typzbiorczy%s\n",
+        scalar(@popis), join('\000',@popis);
+}
+
+################### HASŁA  ###############################
+
+do "latin2-tab.pl";
+
+sub encode {
+    my @napis = split('',shift);
+    return join'', 
+    map {
+	my $morfc = $latin2_morf[ord($_)];
+	die "Nieznany znak '$_'" unless defined($morfc);
+	$morfc++ if $morfc >= $CASEABLE && $morfc % 2 == 0;
+	sprintf("\\%03o", $morfc)
+	 } @napis;
+}
+    
+
+sub skroc_haslo {
+    my ($forma, $haslo) = @_;
+    my $compref = 0;
+    my $morfc;
+    $compref++ while (substr($forma, $compref, 1) && (
+			  (substr($forma, $compref, 1) 
+			   eq substr($haslo, $compref, 1)) ||
+			  ($morfc = $latin2_morf[ord(substr($haslo, $compref, 1))] ) >= $CASEABLE && $morfc % 2 ==0 &&
+			  $morfc + 1 == $latin2_morf[ord(substr($forma, $compref, 1))]
+			  )
+		      );
+    # obliczamy wzorzec bitowy wielkich liter:
+    my $wielkie = 0;
+    my $mnoznik = 1;
+    for my $c (split '', $haslo) {
+	my $morfc = $latin2_morf[ord($c)];
+	$wielkie += $mnoznik
+	    if $morfc >= $CASEABLE && $morfc % 2 == 0;
+	$mnoznik *= 2;
+    }
+    die "Wielkie litery są za daleko w haśle $haslo"
+	if $wielkie >= 2 ** 16;
+    #
+    return sprintf("\\%03o\\%03o\\%03o%s", 
+		   length($forma)-$compref,
+		   $wielkie >> 8,
+		   $wielkie & 0x00FF,
+		   encode(substr($haslo, $compref))
+		   );
+}
+
+################### TYPY ZNACZNIKÓW ######################
+
+sub dajtyp {
+    my ($tag, $haslo) = @_;
+    my $typ = $typyleks{"$haslo:$tag"};
+    $typ = $typy{$tag} unless defined($typ);
+#    print STDERR ":: '$haslo' '$tag' '$typ'\n";
+    return $typ if defined($typ);
+    return $typdomyslny;
+}
+
+sub loadtypy {
+    $typdomyslny='N';
+
+    print STDERR "Ładuję typy tagów...";
+    open TAB, "<../r_typy-tagow.dat";
+    while (<TAB>) {
+	chomp;
+	die "Błąd formatu listy typów"
+	    unless m/^(.)\t(.+)$/;
+	$typy{$2}=$1;
+    }
+    print STDERR "już\n";
+    
+    print STDERR "Ładuję typy leksemów...";
+    open TAB, "<../r_typy-leksemow.dat";
+    while (<TAB>) {
+	chomp;
+	die "Błąd formatu listy typów"
+	    unless m/^(.)\t(.+)$/;
+	$typyleks{$2}=$1;
+    }
+    print STDERR "już\n";
+}
+
+################### TYPY ZBIORCZE ########################
+
+our %typy_zbiorcze = ();
+our $nowy_typ = 'V';
+
+sub znajdz_zbiorczy {
+    my $typy = join('', sortuniq( map { substr($_,0,1) } @popis));
+    if (!defined($typy_zbiorcze{$typy})) {
+	if (length($typy) == 1) {
+	$typy_zbiorcze{$typy} = $typy;
+	} else {
+	    $typy_zbiorcze{$typy} = $nowy_typ;
+	    if ( $nowy_typ eq 'Z' ) {
+		$nowy_typ = 'a';
+	    } elsif ( $nowy_typ eq 'z' ) {
+		$nowy_typ = '1';
+	    } elsif ( $nowy_typ eq '9' ) {
+		$nowy_typ = '!';
+	    } elsif ( $nowy_typ eq '!' ) {
+		$nowy_typ = '%';
+	    } elsif ( $nowy_typ eq '%' ) {
+		$nowy_typ = '&';
+	    } elsif ( $nowy_typ eq '&' ) {
+		$nowy_typ = '/';
+	    } elsif ( $nowy_typ eq '/' ) {
+		$nowy_typ = '<';
+	    } elsif ( $nowy_typ eq '<' ) {
+		$nowy_typ = '>';
+	    } elsif ( $nowy_typ eq '>' ) {
+		$nowy_typ = ':';
+	    } elsif ( $nowy_typ eq ':' ) {
+		$nowy_typ = ';';
+	    } elsif ( $nowy_typ eq ';' ) {
+		$nowy_typ = '(';
+	    } elsif ( $nowy_typ eq '(' ) {
+		$nowy_typ = ')';
+	    } elsif ( $nowy_typ eq ')' ) {
+		$nowy_typ = '[';
+	    } elsif ( $nowy_typ eq '[' ) {
+		$nowy_typ = ']';
+	    } elsif ( $nowy_typ eq ']' ) {
+		die "Za dużo typów zbiorczych";
+	    } else {
+		$nowy_typ++;
+	    }
+	}
+    }
+#    print STDERR "$typy $typy_zbiorcze{$typy}\n";
+    return $typy_zbiorcze{$typy};
+}
+
+sub dump_zbiorcze {
+    open ZB, ">typy_zbiorcze.tmp";
+    for my $typ (sort keys %typy_zbiorcze) {
+	print ZB "$typ\t$typy_zbiorcze{$typ}\n";
+    }
+    close ZB;
+}
+
+##########################################################
+
+################### PROGRAM GŁÓWNY ########################
+loadtypy();
+
+print STDERR "Przetwarzam plik...\n";
+
+$inputpattern = '^([^ ]+) ([^ ]+) ([^ ]*)$';
+
+print STDERR "\x1B[?25l"; # schowaj kursor terminala
+
+$_=<>; chomp;
+die "Błąd formatu słownika: $_\n"
+    unless m/$inputpattern/o;
+($pforma, $phaslo, @ptagi) = ($1,$2,split('\|', $3));
+$pflex = dajflex(@ptagi);
+@popis=();
+
+while (<>) {
+    print STDERR "\r$." if $. % 500 == 0;
+    chomp;
+    die "Błąd formatu słownika"
+	unless m/$inputpattern/o;
+    my ($forma, $haslo, $tagi) = ($1, $2, $3);
+    my @tagi = split '\|', $tagi;
+    my $flex = dajflex(@tagi);
+    
+#print STDERR "*$pforma $phaslo $pflex\n";			   
+    if ($pforma eq $forma && $phaslo eq $haslo &&
+	$pflex eq $flex) {
+#print STDERR "*=\n";	
+	# te same formy, hasła i typy fleksemowe
+	push @ptagi, @tagi;
+    } else { # ($pforma eq $forma) {
+#print STDERR "*!=$forma $haslo $flex\n";	
+	# interpretacja tego samego słowa jako czegoś zauważalnie innego
+	przetw_fleksem();
+	$phaslo=$haslo; $pflex=$flex;
+	@ptagi=@tagi;
+    } 
+    if ($pforma ne $forma) {
+#print STDERR "*!=$forma <$zsyp>\n";
+	# nowe słowo
+	przetw_slowo();
+
+	@popis = ();
+	$pforma = $forma;
+	$phaslo = $haslo;
+	$pflex = $flex;
+    }
+}
+przetw_fleksem();
+przetw_slowo();
+
+print STDERR "\x1B[?25h\n";
+print STDERR "\njuż\n";
+
+print STDERR "Zapisuję listę typów zbiorczych... ";
+dump_zbiorcze();
+print STDERR "już\n";
+
+
+################### KONIEC ###############################
+

@@ -1,0 +1,32 @@
+# -*- makefile -*- 
+
+arch=win32
+
+LIBMORFVERSIONED = morfeusz.dll
+DLL_EXP_LIB = libmorfeusz.a
+LIBFILES = $(LIBMORFVERSIONED) $(DLL_EXP_LIB)
+
+PROG = morfeusz.exe
+
+CROSSPREF = i586-mingw32msvc-
+CC = $(CROSSPREF)gcc
+CXX = $(CROSSPREF)c++
+AS = $(CROSSPREF)as
+STRIP = $(CROSSPREF)strip
+
+OPTFLAGS = -I$(SRCDIR) -I$(SRCDIR)/encodings -I$(SRCDIR)/dfabuilder -s -Wall -O2 
+CXXFLAGS = $(DLL_CFLAGS) $(OPTFLAGS)  -Wno-write-strings 
+
+DLL_CFLAGS = -DBUILDING_MORFEUSZ=1
+DLL_LDFLAGS = -mwindows -Wl,--out-implib,$(DLL_EXP_LIB)
+DLL_LDLIBS = 
+
+include ../Makefile.common
+
+$(LIBMORFVERSIONED) $(DLL_EXP_LIB): $(OBJECTS)
+	$(CXX) -shared -o $(LIBMORFVERSIONED) $(OBJECTS) $(DLL_LDFLAGS) $(DLL_LDLIBS)
+	$(STRIP) $(LIBMORFVERSIONED)
+
+$(PROG): $(SRCDIR)/client-noreadline.cc $(SRCDIR)/morfeusz.h
+	$(CXX) $(OPTFLAGS) -o $@ $< -L./ -lmorfeusz
+

@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+
+use strict;
+
+# Program przekszta³caj±cy opis automatu wygenerowany przez dfabuild
+# na tablice struktur dla kompilatora C++ (zob. fsa.hh).  Uwaga: pisze
+# do plików o ustalonych nazwach: tmp_states.cc i tmp_transitions.cc!
+
+
+use vars qw($dfaname $dfafile $stateno $transno);
+
+($dfaname,$dfafile) = (shift,shift);
+open ST, ">$dfafile\_states.cc";
+open TR, ">$dfafile\_transitions.cc";
+
+print ST <<"EOS";
+static const fsa_state $dfaname\_states[] = {
+  {0,0,0} // index shift
+EOS
+    
+print TR <<"EOS";
+static const fsa_trans $dfaname\_transitions[] = {
+  { 0,0} // index shift
+EOS
+
+
+$stateno=0; $transno=1;
+while (<>) {
+    chomp;
+    die "B³êdne wej¶cie" unless
+	m/^([0-9]+)\#([+-])([^\#]*)\#(.*)$/;
+    $stateno = $1;
+    my ($acc,$val,$trans) = ($2,$3,$4);
+    $val = '0' if $acc eq '-';
+    $val = qq("$val") if $acc eq '+';
+    my ($ctransno, $childno) = ($transno, 0);
+    while ($trans =~ s/ (.)->([0-9]+)//) {
+	my ($lab, $state) = ($1,$2);
+	print TR ",  {'$lab', $state} // $transno\n";
+	$transno++; $childno++;
+    }
+    die "B³êdne przej¶cia" unless $trans eq '';
+    $ctransno = '0' if $childno == 0;
+    print ST qq(,  {$val, $childno, $ctransno} // $stateno\n);
+}
+
+print ST <<"EOS";
+};
+
+EOS
+
+print TR <<"EOS";
+};
+
+EOS
+
+    open DFA, ">$dfafile.cc";
+print DFA <<"EOS";
+#include "fsa.hh"
+#include "$dfaname\_states.cc"
+#include "$dfaname\_transitions.cc"
+
+dfa $dfaname = dfa($dfaname\_states, $dfaname\_transitions, $stateno);
+
+EOS
+
+    close ST;
+close TR;
+close DFA;

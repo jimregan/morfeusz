@@ -1,0 +1,23 @@
+# -*- makefile -*- 
+
+arch=linux64
+LIBMORF = libmorfeusz.so
+LIBMORFFLAV = libmorfeusz$(FLAVOUR).so
+LIBMORFVERSIONED = $(LIBMORFFLAV).$(MAJOR).$(MINOR)
+LIBFILES = $(LIBMORFVERSIONED) $(LIBMORF).$(MAJOR) $(LIBMORF)
+
+PROG = morfeusz
+
+OPTFLAGS =  -m64 -I$(SRCDIR) -I$(SRCDIR)/encodings -I$(SRCDIR)/dfabuilder -s -Wall -O2 
+CXXFLAGS = $(OPTFLAGS) -fPIC -Wno-write-strings 
+
+include ../Makefile.common
+
+$(LIBMORFVERSIONED): $(OBJECTS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -Wl,-soname,$(LIBMORF).$(MAJOR) -o $@ $(OBJECTS)
+	ln -sf $(LIBMORFVERSIONED) $(LIBMORF).$(MAJOR)
+	ln -sf $(LIBMORF).$(MAJOR) $(LIBMORF)
+
+$(PROG): $(SRCDIR)/client.cc $(SRCDIR)/morfeusz.h
+	$(CXX) $(OPTFLAGS) -o $@ $< -L./ -lmorfeusz -lreadline
+

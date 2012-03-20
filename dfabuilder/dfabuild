@@ -1,0 +1,209 @@
+#!/usr/bin/perl
+
+use strict;
+
+# Program buduj±cy automat skoñczony rozpoznaj±cy dany zbiór s³ów i 
+# przypisuj±cy im opisy (s³ownik).  Na wej¶ciu posortowana lista s³ów
+# opatrzonych opisami w formacie
+# <s³owo> <opis>
+# (s³owo do pierwszej spacji, reszta jest opisem)
+
+# Struktury danych:
+# 
+# przej¶cie: para [$znak, $stan]
+#
+# stan automatu: trójka [[$przejscie, ...], $opis, $numer]
+#  $opis ma warto¶æ undef je¶li stan nieakceptuj±cy
+#
+# protostan (kandydat-na-stan): trójka [[$przejscie, ...], $opis, $znak]
+#  $opis ma warto¶æ undef je¶li stan nieakceptuj±cy
+#  $znak przechowuje znak etykietuj±cy przej¶cie do nastêpnego protostanu
+#  $znak ma warto¶æ undef dla ostatniego znaku na li¶cie
+
+# W czasie budowy skrajna prawa ¶cie¿ka w budowanym grafie jest
+# przechowywana w postaci listy proto-stanów. [...]
+
+########################################################################
+# Zmienne globalne:
+
+# @protostates: lista protostanów
+# $stateno: numer ostatnio zaalokowanego stanu
+# %states: rejestr gotowych stanów
+# $inputpattern: wzorzec dla linii czytanych z wej¶cia (powinien zawieraæ dwie pary nawiasów)
+
+use vars qw(@protostates $stateno %states $inputpattern);
+
+@protostates = ();
+$stateno = 0;
+%states = ();
+
+$inputpattern = '^([^ ]+) +(.*)$';
+#$inputpattern = '^([^:]+):(.*)$'; #'
+
+########################################################################
+
+
+# makechain($opis, @ogon)  
+#
+# dodaje ogon s³owa @ogon do listy protostanów, ostatni akceptuj±cy z
+# opisem $opis
+
+sub makechain {
+    my ($opis, @ogon) = @_; 
+    my $char;
+    push @protostates, [[], undef, $char]
+	while ($char = shift @ogon);
+    push @protostates, [[], $opis, undef];
+}
+
+# lookupstate($przej, $opis) returns $state
+#
+# Próbuje odnale¼æ stan izomorficzny z zadanym przez $przej(¶cia) i
+# $opis, w razie niepowodzenia generuje nowy i wprowadza do rejestru stanów
+
+sub lookupstate {
+    my ($przej, $opis) = @_;
+    my $state;
+    my $id = '';
+
+    foreach my $p (@$przej) {
+	$id .= ":$p->[0]$p->[1]->[2]";
+    }
+    $id .= "|$opis" if defined($opis);
+    $state = $states{$id};
+    if (!defined($state)) {
+	$state = [$przej, $opis, ++$stateno];
+	$states{$id} = $state;
+    }
+#    print STDERR "Lookup: $id ---> $state->[2]\n";
+    return $state;
+}
+
+# compresspath($fromstate)
+#
+# przekszta³ca proto-stany w stany dla
+# @protostates[$fromstate+1..$#protostates] sprawdzaj±c, czy mo¿na
+# zast±piæ izomorficznymi
+
+sub compresspath {
+    my $from = shift;
+    my $stan = undef;
+    while ($#protostates > $from) {
+	my ($przej, $opis, $znak) = @{pop @protostates};
+#	print "$#protostates, @$przej, $opis, $znak\n";
+	push @$przej, [$znak, $stan]
+	    if defined($stan);
+#	print "$#protostates, @$przej, $opis, $znak\n";
+	$stan = lookupstate($przej, $opis);
+    }
+    return $stan;
+}
+
+# addword($opis, @slowo)
+#
+# dodaje do automatu w budowie slowo @slowo o opisie $opis
+
+sub addword {
+    my ($opis, @slowo) = @_;
+    my $lastcommon = 0;
+    my $stan;
+    $lastcommon++ 
+	while ($lastcommon < @slowo && 
+	       $protostates[$lastcommon]->[2] eq $slowo[$lastcommon]);
+#    die "Sort order!" if 
+#    print "<$lastcommon | @slowo[$lastcommon..$#slowo]>\n";
+    die "Sort order (0)" if $lastcommon == @slowo;
+ 
+    $stan = compresspath($lastcommon);
+    push @{@protostates[$lastcommon]->[0]}, 
+	 [$protostates[$lastcommon]->[2], $stan] if $stan;
+    
+    $protostates[$lastcommon]->[2] = $slowo[$lastcommon];
+    makechain($opis, @slowo[$lastcommon+1..$#slowo]);
+}
+
+# fixupdfa() returns $stan
+#
+# przekszta³ca automat w budowie w automat zamykaj±c ostatni± ¶cie¿kê
+
+sub fixupdfa {
+    my($przej, $opis, $znak) = @{$protostates[0]};
+    push @$przej, [$znak, compresspath(0)];
+    return [$przej, $opis, ++$stateno];
+}
+
+# builddfa() returns $stan
+#
+# buduje automat z listy s³ów podanej na stdin
+
+sub builddfa {
+    $_ = <>;
+    die "B³êdne wej¶cie: $_\n"
+	unless m/$inputpattern/o;
+    my ($slowo,$opis) = ($1,$2);
+#    print STDERR "$slowo --> $opis\n";
+    makechain($opis, split('',$slowo));
+
+    while (<>) {
+	chomp;
+	die "B³êdne wej¶cie: $_\n"
+	    unless m/$inputpattern/o;
+	($slowo,$opis) = ($1,$2);
+#	print STDERR "$slowo --> $opis\n";
+	print STDERR "+" if $. % 1000 == 0;
+	addword($opis, split('',$slowo))
+    }
+    return fixupdfa();
+}
+
+# printdfa($stan):
+# drukuje automat o stanie pocz±tkowym $stan
+
+use vars qw($statenoprinted);
+$statenoprinted = 0;
+sub printdfa {
+    my $state = shift;
+    my ($przej, $opis, $nr) = @$state;
+    return unless $statenoprinted < $nr;
+    foreach my $child (@$przej) {
+	printdfa($child->[1]);
+	}
+    print "$nr#", defined($opis)?"+$opis":'-', "#";
+    foreach my $child (@$przej) {
+	print " $child->[0]\->$child->[1]->[2]";
+    }
+    $statenoprinted = $nr;
+    print "\n";
+}
+
+
+
+########################################################################
+# Program g³ówny:-)
+
+printdfa builddfa();
+print STDERR "\n";
+
+__END__
+########################################################################
+# test:
+
+makechain("ala ma kota", split('',"koce"));
+addword("ola", split('',"kota"));
+addword("foka", split('',"kotanyi"));
+#makechain("mIV", split('',"kot"));
+#addword("Va", split('',"kuæ"));
+#addword("mIV", split('',"lot"));
+printdfa fixupdfa();
+
+__END__
+use vars qw($elem $c $o);
+foreach $elem (@protostates) {
+    $o = $elem->[1];
+    $c = $elem->[2];
+    
+    print "[", join(',',@{$elem->[0]}), "]\t", (defined($o)?$o:'nil1'), "\t", 
+    (defined($c)?$c:'nil2'), "\n";
+}
+print "\n";
+

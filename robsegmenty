@@ -1,0 +1,51 @@
+#! /usr/bin/perl 
+use strict;
+our $typrx='[][A-Za-z0-9!%&/<>:;()]';
+our $typyrx="$typrx+";
+our %zbiorcze=();
+
+open ZB, "<".shift;
+while (<ZB>) {
+    chomp;
+    die "Niepoprawny format typów zbiorczych"
+	unless m/^($typyrx)\t($typrx)$/;
+    my ($alt,$typ) = ($1,$2);
+    for my $t (split '', $alt) {
+	push @{$zbiorcze{$t}}, $typ;
+    }
+}
+close ZB;
+for my $t (sort keys %zbiorcze) {
+    print STDERR "$t -> @{$zbiorcze{$t}}\n";
+}
+
+our %segmenty = ();
+
+while (<>) {
+    chomp;
+    die "Niepoprawny format danych wej¶ciowych"
+	unless m/^$typyrx$/o;
+    my $segm = $&;
+    rozwin($segm, '', $segm);
+#    print "$segm $segm\n";
+}
+
+sub rozwin {
+    my ($wart, $presegm, $segm) = @_;
+#    print "'$wart' '$presegm' '$segm'\n";
+    if (length($segm) == 0) {
+	push @{$segmenty{$presegm}}, $wart;
+#	print "$presegm $wart\n";
+    } else {
+	$segm =~ s/^(.)//;
+	my $typ = $1;
+	for my $subst (@{$zbiorcze{$typ}}) {
+	    rozwin($wart, $presegm.$subst, $segm);
+	}
+    }
+}
+
+for my $segm (sort keys %segmenty) {
+    printf "$segm \\%03o%s\n", scalar(@{$segmenty{$segm}}),
+          join('\000',@{$segmenty{$segm}});
+}

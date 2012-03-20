@@ -1,0 +1,21 @@
+# -*- makefile -*- 
+
+arch=darwin32
+LIBMORFVERSIONED = libmorfeusz.dylib
+LIBFILES = $(LIBMORFVERSIONED)
+
+PROG = morfeusz
+
+CXX=/usr/i686-apple-darwin9/bin/i686-apple-darwin9-g++
+
+OPTFLAGS = -I$(SRCDIR) -I$(SRCDIR)/encodings -I$(SRCDIR)/dfabuilder -Wall -O2 
+CXXFLAGS = $(OPTFLAGS) -Wno-write-strings 
+
+include ../Makefile.common
+
+$(LIBMORFVERSIONED): $(OBJECTS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -dynamiclib -Wl,-x -o $@ $(OBJECTS)
+
+$(PROG): $(SRCDIR)/client-noreadline.cc $(SRCDIR)/morfeusz.h
+	$(CXX) $(OPTFLAGS) -o $@ $< -L./ -lmorfeusz
+

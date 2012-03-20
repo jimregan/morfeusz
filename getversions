@@ -1,0 +1,53 @@
+#! /usr/bin/perl
+
+use File::stat;
+
+$progname='Morfeusz SGJP';
+$dictfile='../formySGJP.tab';
+
+$major='0';
+
+$totalminor = 0;
+$totaldate = '';
+$totalyear = '';
+$totaldateval = 0;
+
+while (<>) {
+    if (m@\$Revision: (\d+\.\d+) \$\s+\$Date: (\d+)/(\d+)/(\d+) \d+:\d+:\d+ \$@) {
+	my ($version, $year, $month, $day) = ($1,$2,$3,$4);
+	die "Wrong version $version for file $ARGV (major version mismatch)"
+	    unless $version =~ m/^$major\.(\d+)$/;
+	my $minor = $1;
+	$totalminor += $minor;
+	$dateval = "$year$month$day";
+	if ($dateval > $totaldateval) {
+	    $totaldate = "$year/$month/$day";
+	    $totalyear = $year;
+	    $totaldateval = $dateval;
+	}
+	print STDERR "$ARGV $version $year/$month/$day\n";
+    }
+}
+
+my (undef, undef, undef, $dataday, $datamon, $datayear) =
+    localtime(stat($dictfile)->mtime), "\n";
+$datamon+=1; $datayear+=1900;
+$datadate = sprintf "%d/%02d/%02d", $datayear, $datamon, $dataday;
+
+print STDERR ">P> $major.$totalminor $totaldate\n";
+print STDERR ">D> $datadate\n";
+
+my $flavour = '';
+
+my $authors='Zygmunt Saloni, Włodzimierz Gruszczyński, Marcin Woliński, Robert Wołosz';
+
+print <<"EOF"
+
+static char *morfeusz_version = 
+"$progname wersja $major.$totalminor <$totaldate>\\n\\
+Copyright (c) $totalyear by Marcin Woliński\\n\\
+\\n\\
+Dane lingwistyczne <$datadate>\\n\\
+Copyright (c) $datayear by $authors\\n$flavour";
+
+EOF
