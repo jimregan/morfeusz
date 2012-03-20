@@ -2,7 +2,7 @@
 
 use strict;
 
-BEGIN { push @INC, "../", "../encodings"; }
+BEGIN { push @INC, "./", "/encodings"; }
 
 use Tagmanip qw(sortuniq norm_tags);
 use vars qw($inputpattern
@@ -48,7 +48,7 @@ sub przetw_slowo {
 
 ################### HASŁA  ###############################
 
-do "latin2-tab.pl";
+do "encodings/latin2-tab.pl";
 
 sub encode {
     my @napis = split('',shift);
@@ -108,7 +108,7 @@ sub loadtypy {
     $typdomyslny='N';
 
     print STDERR "Ładuję typy tagów...";
-    open TAB, "<../r_typy-tagow.dat";
+    open TAB, "<./r_typy-tagow.dat";
     while (<TAB>) {
 	chomp;
 	die "Błąd formatu listy typów"
@@ -118,7 +118,7 @@ sub loadtypy {
     print STDERR "już\n";
     
     print STDERR "Ładuję typy leksemów...";
-    open TAB, "<../r_typy-leksemow.dat";
+    open TAB, "<./r_typy-leksemow.dat";
     while (<TAB>) {
 	chomp;
 	die "Błąd formatu listy typów"

@@ -6,12 +6,13 @@ LIBFILES = $(LIBMORFVERSIONED)
 
 PROG = morfeusz
 
-CXX=/usr/i686-apple-darwin9/bin/i686-apple-darwin9-g++
+#CXX=/usr/i686-apple-darwin9/bin/i686-apple-darwin9-g++
+CXX=g++
 
 OPTFLAGS = -I$(SRCDIR) -I$(SRCDIR)/encodings -I$(SRCDIR)/dfabuilder -Wall -O2 
 CXXFLAGS = $(OPTFLAGS) -Wno-write-strings 
 
-include ../Makefile.common
+include Makefile.common
 
 $(LIBMORFVERSIONED): $(OBJECTS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -dynamiclib -Wl,-x -o $@ $(OBJECTS)

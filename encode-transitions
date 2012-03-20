@@ -2,8 +2,8 @@
 use strict;
 use vars qw(@latin2_morf);
 BEGIN {
-push @INC, "../", "../encodings/";
-do "latin2-tab.pl";
+push @INC, "./", "./encodings/";
+do "./encodings/latin2-tab.pl";
 }
 
 s/'(.)'/encode($1)/eg;
